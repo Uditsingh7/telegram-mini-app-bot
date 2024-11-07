@@ -1,53 +1,74 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Home, CheckSquare, Users, CreditCard, DollarSign, Check, Copy } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useState, useEffect } from 'react';
+import { Home, CheckSquare, Users, CreditCard, DollarSign, Check, Copy } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-// Mock Telegram Web App API
-const TelegramWebApp = {
-  ready: () => {},
-  MainButton: {
-    setText: (text: string) => {},
-    show: () => {},
-    onClick: (callback: () => void) => {},
-  },
+declare global {
+  interface Window {
+    Telegram: any;
+  }
 }
 
 export default function UserDashboard() {
-  const [hasJoinedChannel, setHasJoinedChannel] = useState(false)
-  const [activeTab, setActiveTab] = useState('home')
-  const [balance, setBalance] = useState(0)
+  const [hasJoinedChannel, setHasJoinedChannel] = useState(false);
+  const [activeTab, setActiveTab] = useState('home');
+  const [balance, setBalance] = useState(0);
   const [tasks, setTasks] = useState([
     { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', completed: false },
     { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', completed: false },
-  ])
-  const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456')
-  const [referralCount, setReferralCount] = useState(0)
+  ]);
+  const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
+  const [referralCount, setReferralCount] = useState(0);
+  const [user, setUser] = useState<any>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
-    TelegramWebApp.ready()
-  }, [])
+    const telegram = window.Telegram?.WebApp;
+
+    if (telegram) {
+      telegram.ready(); // Signal that the WebApp is ready
+      console.log("Telegram WebApp initialized");
+
+      // Retrieve user data and check for start parameters
+      const initDataUnsafe = telegram.initDataUnsafe;
+      setUser(initDataUnsafe.user);
+
+      if (initDataUnsafe.start_param) {
+        setReferralCode(initDataUnsafe.start_param);
+        console.log("Referral code:", initDataUnsafe.start_param); // Debugging referral code
+      }
+
+      // Customize main button
+      telegram.MainButton.setText('Start');
+      telegram.MainButton.show();
+      telegram.MainButton.onClick(() => {
+        console.log("Main button clicked!");
+      }); // This will log to the console when the button is clicked
+    } else {
+      console.warn("Telegram WebApp API is not available.");
+    }
+  }, []);
+
 
   const handleJoinChannel = () => {
-    // Simulating channel join verification
     setTimeout(() => {
-      setHasJoinedChannel(true)
-      TelegramWebApp.MainButton.setText('Start')
-      TelegramWebApp.MainButton.show()
-    }, 2000)
-  }
+      setHasJoinedChannel(true);
+      window.Telegram?.WebApp.MainButton.setText('Continue');
+      window.Telegram?.WebApp.MainButton.show();
+    }, 2000);
+  };
 
   const handleClaimTask = (taskId: number) => {
-    setTasks(tasks.map(task => 
+    setTasks(tasks.map(task =>
       task.id === taskId ? { ...task, completed: true } : task
-    ))
-    setBalance(prevBalance => prevBalance + 10) // Assume each task gives 10 points
-  }
+    ));
+    setBalance(prevBalance => prevBalance + 10);
+  };
 
   if (!hasJoinedChannel) {
     return (
@@ -64,7 +85,7 @@ export default function UserDashboard() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -74,7 +95,7 @@ export default function UserDashboard() {
           <TabsContent value="home">
             <Card className="shadow-md hover:shadow-lg transition-shadow duration-200">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold text-indigo-700">Welcome Back!</CardTitle>
+                <CardTitle className="text-2xl font-bold text-indigo-700">Welcome Back, {user?.first_name}!</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold mb-6 text-indigo-600">Total Balance: {balance} points</p>
@@ -87,7 +108,7 @@ export default function UserDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="tasks">
             <Card className="shadow-md">
               <CardHeader>
@@ -112,7 +133,7 @@ export default function UserDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="refer">
             <Card className="shadow-md">
               <CardHeader>
@@ -130,7 +151,7 @@ export default function UserDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="withdraw">
             <Card className="shadow-md">
               <CardHeader>
@@ -152,7 +173,7 @@ export default function UserDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="earn">
             <Card className="shadow-md">
               <CardHeader>
@@ -205,5 +226,5 @@ export default function UserDashboard() {
         </TabsList>
       </Tabs>
     </div>
-  )
+  );
 }
