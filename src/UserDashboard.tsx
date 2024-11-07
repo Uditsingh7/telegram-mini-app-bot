@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import axios from 'axios';
 
 declare global {
   interface Window {
@@ -14,46 +15,102 @@ declare global {
   }
 }
 
+// Define the Task type
+interface Task {
+  id: number;
+  name: string;
+  description: string;
+  completed: boolean;
+}
+
 export default function UserDashboard() {
   const [hasJoinedChannel, setHasJoinedChannel] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [balance, setBalance] = useState(0);
-  const [tasks, setTasks] = useState([
-    { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', completed: false },
-    { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', completed: false },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
   const [referralCount, setReferralCount] = useState(0);
   const [user, setUser] = useState<any>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
-    const telegram = window.Telegram?.WebApp;
-
-    if (telegram) {
-      telegram.ready(); // Signal that the WebApp is ready
-      console.log("Telegram WebApp initialized");
-
-      // Retrieve user data and check for start parameters
-      const initDataUnsafe = telegram.initDataUnsafe;
-      setUser(initDataUnsafe.user);
-
-      if (initDataUnsafe.start_param) {
-        setReferralCode(initDataUnsafe.start_param);
-        console.log("Referral code:", initDataUnsafe.start_param); // Debugging referral code
+    // Check if `window.Telegram` is defined
+    if (window.Telegram) {
+      alert("Telegram object is defined");
+  
+      const telegram = window.Telegram.WebApp;
+  
+      // Check if `WebApp` exists within `Telegram`
+      if (telegram) {
+        alert("Telegram WebApp API is available");
+  
+        // Indicate the app is ready
+        telegram.ready();
+        fetchTasks();
+  
+        // Check `initDataUnsafe` and user data
+        const initDataUnsafe = telegram.initDataUnsafe;
+        alert(`initDataUnsafe: ${JSON.stringify(initDataUnsafe)}`);
+        
+        if (initDataUnsafe && initDataUnsafe.user) {
+          setUser(initDataUnsafe.user);
+          alert(`User info set: ${JSON.stringify(initDataUnsafe.user)}`);
+        } else {
+          alert("No user data in initDataUnsafe");
+        }
+  
+        // Check and set referral code
+        if (initDataUnsafe.start_param) {
+          setReferralCode(initDataUnsafe.start_param);
+          alert(`Referral code: ${initDataUnsafe.start_param}`);
+        } else {
+          alert("No start_param in initDataUnsafe");
+        }
+  
+        // Trigger createOrUpdateUser if user data exists
+        if (initDataUnsafe.user) {
+          createOrUpdateUser(initDataUnsafe.user);
+        }
+  
+        // Set up MainButton
+        telegram.MainButton.setText('Start');
+        telegram.MainButton.show();
+        alert("MainButton set and shown");
+        
+      } else {
+        alert("Telegram WebApp API is not available (Telegram exists but WebApp is undefined)");
       }
-
-      // Customize main button
-      telegram.MainButton.setText('Start');
-      telegram.MainButton.show();
-      telegram.MainButton.onClick(() => {
-        console.log("Main button clicked!");
-      }); // This will log to the console when the button is clicked
     } else {
+      alert("Telegram object is not available in window");
       console.warn("Telegram WebApp API is not available.");
     }
   }, []);
+  
 
+  const createOrUpdateUser = async (userData: { id: any; username: any; first_name: any; last_name: any; }) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/users/create-or-update', {
+        userId: userData.id,
+        username: userData.username,
+        firstName: userData.first_name,
+        lastName: userData.last_name
+      });
+      setUser(response.data);
+      setBalance(response.data.balance || 0);
+    } catch (error) {
+      console.error("Error in createOrUpdateUser:", error);
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/tasks');
+      console.log("task: ", response)
+      setTasks(response.data);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
 
   const handleJoinChannel = () => {
     setTimeout(() => {
@@ -63,11 +120,16 @@ export default function UserDashboard() {
     }, 2000);
   };
 
-  const handleClaimTask = (taskId: number) => {
-    setTasks(tasks.map(task =>
-      task.id === taskId ? { ...task, completed: true } : task
-    ));
-    setBalance(prevBalance => prevBalance + 10);
+  const handleClaimTask = async (taskId: number) => {
+    try {
+      await axios.patch(`http://localhost:5000/api/tasks/${taskId}/complete`);
+      setTasks(tasks.map(task =>
+        task.id === taskId ? { ...task, completed: true } : task
+      ));
+      setBalance(prevBalance => prevBalance + 10);
+    } catch (error) {
+      console.error("Error marking task as complete:", error);
+    }
   };
 
   if (!hasJoinedChannel) {
@@ -115,7 +177,7 @@ export default function UserDashboard() {
                 <CardTitle className="text-2xl font-bold text-indigo-700">Available Tasks</CardTitle>
               </CardHeader>
               <CardContent>
-                {tasks.map(task => (
+                {tasks.map((task: any) => (
                   <div key={task.id} className="flex items-center justify-between mb-4 p-4 border rounded-lg hover:bg-indigo-50 transition-colors duration-200">
                     <div>
                       <h3 className="font-semibold text-indigo-600">{task.name}</h3>
