@@ -31,7 +31,7 @@ export default function UserDashboard() {
   const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
   const [referralCount, setReferralCount] = useState(0);
   const [user, setUser] = useState<any>(null);
-  const [referralCode, setReferralCode] = useState<string | null>(null);
+  // const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if `window.Telegram` is defined
@@ -54,6 +54,8 @@ export default function UserDashboard() {
         
         if (initDataUnsafe && initDataUnsafe.user) {
           setUser(initDataUnsafe.user);
+          setReferralLink("https://t.me/YourBot?start=12345")
+          setReferralCount(5)
           alert(`User info set: ${JSON.stringify(initDataUnsafe.user)}`);
         } else {
           alert("No user data in initDataUnsafe");
@@ -61,7 +63,7 @@ export default function UserDashboard() {
   
         // Check and set referral code
         if (initDataUnsafe.start_param) {
-          setReferralCode(initDataUnsafe.start_param);
+          // setReferralCode(initDataUnsafe.start_param);
           alert(`Referral code: ${initDataUnsafe.start_param}`);
         } else {
           alert("No start_param in initDataUnsafe");
