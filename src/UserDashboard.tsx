@@ -40,6 +40,7 @@ export default function UserDashboard() {
   const [referralCount, setReferralCount] = useState(0);
   const [userData, setUserData] = useState<any>(null);
   // const [referralCode, setReferralCode] = useState<string | null>(null);
+  console.log(webApp, userData, setReferralCount, setReferralLink)
 
   useEffect(() => {
     const handleUserAndTasks = async () => {
