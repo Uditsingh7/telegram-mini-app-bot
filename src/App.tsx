@@ -1,10 +1,13 @@
 import UserDashboard from './UserDashboard'
+import { TelegramProvider } from './WithTelegramProvider';
 
 function App() {
 
   return (
     <>
-      <UserDashboard />
+      <TelegramProvider>
+        <UserDashboard />
+      </TelegramProvider>
     </>
   )
 }

@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import axios from 'axios';
+import { useTelegram, ITelegramUser } from './WithTelegramProvider'
 
 declare global {
   interface Window {
@@ -23,86 +24,72 @@ interface Task {
   completed: boolean;
 }
 
+const defaultTasks: Task[] = [
+  { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', completed: false },
+  { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', completed: false },
+]
+
 export default function UserDashboard() {
-  const [hasJoinedChannel, setHasJoinedChannel] = useState(false);
+  const { user, webApp } = useTelegram();
+  const [loading, setLoading] = useState<boolean>(true);
+  const [hasJoinedChannel, setHasJoinedChannel] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [balance, setBalance] = useState(0);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(defaultTasks);
   const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
   const [referralCount, setReferralCount] = useState(0);
-  const [user, setUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
   // const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if `window.Telegram` is defined
-    if (window.Telegram) {
-      alert("Telegram object is defined");
-  
-      const telegram = window.Telegram.WebApp;
-  
-      // Check if `WebApp` exists within `Telegram`
-      if (telegram) {
-        alert("Telegram WebApp API is available");
-  
-        // Indicate the app is ready
-        telegram.ready();
-        fetchTasks();
-  
-        // Check `initDataUnsafe` and user data
-        const initDataUnsafe = telegram.initDataUnsafe;
-        alert(`initDataUnsafe: ${JSON.stringify(initDataUnsafe)}`);
-        
-        if (initDataUnsafe && initDataUnsafe.user) {
-          setUser(initDataUnsafe.user);
-          setReferralLink("https://t.me/YourBot?start=12345")
-          setReferralCount(5)
-          alert(`User info set: ${JSON.stringify(initDataUnsafe.user)}`);
-        } else {
-          alert("No user data in initDataUnsafe");
-        }
-  
-        // Check and set referral code
-        if (initDataUnsafe.start_param) {
-          // setReferralCode(initDataUnsafe.start_param);
-          alert(`Referral code: ${initDataUnsafe.start_param}`);
-        } else {
-          alert("No start_param in initDataUnsafe");
-        }
-  
-        // Trigger createOrUpdateUser if user data exists
-        if (initDataUnsafe.user) {
-          createOrUpdateUser(initDataUnsafe.user);
-        }
-  
-        // Set up MainButton
-        telegram.MainButton.setText('Start');
-        telegram.MainButton.show();
-        alert("MainButton set and shown");
-        
-      } else {
-        alert("Telegram WebApp API is not available (Telegram exists but WebApp is undefined)");
+    const handleUserAndTasks = async () => {
+      if (user) {
+        await createOrUpdateUser(user); // Ensure the user is created/updated first
       }
-    } else {
-      alert("Telegram object is not available in window");
-      console.warn("Telegram WebApp API is not available.");
-    }
-  }, []);
-  
+      await fetchTasks(); // Then fetch tasks after user handling
+    };
 
-  const createOrUpdateUser = async (userData: { id: any; username: any; first_name: any; last_name: any; }) => {
+    handleUserAndTasks();
+  }, [user]);
+
+
+
+  const createOrUpdateUser = async (user: ITelegramUser) => {
+    if (!user) {
+      console.error("No user data provided.");
+      return;
+    }
+
+    const { id, username, first_name: firstName, last_name: lastName } = user;
+
     try {
-      const response = await axios.post('http://localhost:5000/api/users/create-or-update', {
-        userId: userData.id,
-        username: userData.username,
-        firstName: userData.first_name,
-        lastName: userData.last_name
+      // Create or update user
+      const { data: userResponse } = await axios.post('http://localhost:5000/api/users/create-or-update', {
+        userId: id,
+        username,
+        firstName,
+        lastName
       });
-      setUser(response.data);
-      setBalance(response.data.balance || 0);
-    } catch (error) {
-      console.error("Error in createOrUpdateUser:", error);
+
+      // Update user data state
+      setUserData(userResponse);
+
+      // Check if the user is a member of the channel
+      const { data: membershipCheck } = await axios.get(`http://localhost:5000/api/users/isMember`, {
+        params: { userId: id } 
+      });
+
+      // Update state based on membership
+      setHasJoinedChannel(membershipCheck.isMember);
+      setLoading(false)
+      setBalance(userResponse.balance || 0);
+
+    } catch (error: any) {
+      setLoading(false)
+      console.error("Error in createOrUpdateUser:", error.response?.data || error.message);
     }
   };
+
 
   const fetchTasks = async () => {
     try {
@@ -114,12 +101,20 @@ export default function UserDashboard() {
     }
   };
 
-  const handleJoinChannel = () => {
-    setTimeout(() => {
-      setHasJoinedChannel(true);
-      window.Telegram?.WebApp.MainButton.setText('Continue');
-      window.Telegram?.WebApp.MainButton.show();
-    }, 2000);
+  const handleJoinChannel = async () => {
+    try {
+
+      if (!hasJoinedChannel) {
+        // Open the Telegram channel link in a new tab
+        window.open('https://t.me/+UGrtv9SSttlhZmU1', '_blank'); // Replace with your actual channel link
+      }
+
+    }
+    catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+
+    // setShowJoinMessage(false); // Hide join message after clicking
   };
 
   const handleClaimTask = async (taskId: number) => {
@@ -133,6 +128,15 @@ export default function UserDashboard() {
       console.error("Error marking task as complete:", error);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500"></div>
+        <p className="mt-4 text-lg text-gray-700">Loading, please wait...</p>
+      </div>
+    );
+  }
 
   if (!hasJoinedChannel) {
     return (
