@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 import { useTelegram, ITelegramUser } from './WithTelegramProvider'
 
 declare global {
@@ -36,6 +37,8 @@ export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState('home');
   const [balance, setBalance] = useState(0);
   const [tasks, setTasks] = useState<Task[]>(defaultTasks);
+  const [metaData, setMetaData] = useState<any>({});
+  const [WithdrawalData, setWithdrawalData] = useState<any>({});
   const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
   const [referralCount, setReferralCount] = useState(0);
   const [userData, setUserData] = useState<any>(null);
@@ -45,15 +48,28 @@ export default function UserDashboard() {
   useEffect(() => {
     const handleUserAndTasks = async () => {
       if (user) {
-        await createOrUpdateUser(user); // Ensure the user is created/updated first
+        await createOrUpdateUser(user);
+        await fetchAppMetadata(user)
       }
       await fetchTasks(); // Then fetch tasks after user handling
+
     };
 
     handleUserAndTasks();
   }, [user]);
 
-
+  const savePaymentDetails = async () => {
+    try {
+      const withdrwaBody = {
+        userId: userData?._id,
+        ...WithdrawalData
+      }
+      await axios.post('http://localhost:5000/api/users/payment-details', withdrwaBody)
+      toast.success('Payment details saved successfully!');
+    } catch (error: any) {
+      console.error("Error in createOrUpdateUser:", error.response?.data || error.message);
+    }
+  }
 
   const createOrUpdateUser = async (user: ITelegramUser) => {
     if (!user) {
@@ -77,7 +93,7 @@ export default function UserDashboard() {
 
       // Check if the user is a member of the channel
       const { data: membershipCheck } = await axios.get(`http://localhost:5000/api/users/isMember`, {
-        params: { userId: id } 
+        params: { userId: id }
       });
 
       // Update state based on membership
@@ -101,33 +117,65 @@ export default function UserDashboard() {
       console.error("Error fetching tasks:", error);
     }
   };
+  const fetchAppMetadata = async (user: ITelegramUser) => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/users/settings?config=AppMetaData');
+      console.log("task: ", response)
+      const metaDataRes = response?.data?.value
+      setMetaData(metaDataRes);
+      const refLink = `https://t.me/${metaDataRes?.botUsermame}?start=referral_${user.id}`;
+      setReferralLink(refLink)
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
 
   const handleJoinChannel = async () => {
     try {
 
       if (!hasJoinedChannel) {
         // Open the Telegram channel link in a new tab
-        window.open('https://t.me/+UGrtv9SSttlhZmU1', '_blank'); // Replace with your actual channel link
+        window.open(metaData?.channelLink, '_blank');
       }
-
     }
     catch (error) {
       console.error("Error fetching tasks:", error);
     }
-
-    // setShowJoinMessage(false); // Hide join message after clicking
   };
 
-  const handleClaimTask = async (taskId: number) => {
+  const handlePromoteChannel = async () => {
+    // alert(metaData?.adChannelLink)
+    const telegram = window.Telegram?.WebApp;
     try {
-      await axios.patch(`http://localhost:5000/api/tasks/${taskId}/complete`);
-      setTasks(tasks.map(task =>
-        task.id === taskId ? { ...task, completed: true } : task
-      ));
-      setBalance(prevBalance => prevBalance + 10);
-    } catch (error) {
-      console.error("Error marking task as complete:", error);
+      // Open the Telegram channel link in a new tab
+      telegram.openLink(metaData?.channelLink, '_blank');
     }
+    catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
+
+  const handleClaimTask = async (task: any) => {
+    const telegram = window.Telegram?.WebApp;
+    try {
+      const channelLink = `https://t.me/${task?.channelId}`;
+      // Open the Telegram channel link in a new tab
+      telegram.openLink(channelLink, '_blank');
+    }
+    catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
+
+  // Handle input change and update the state dynamically
+  const handleWithdrawChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+
+    // Dynamically update the corresponding field in the withdrawalData object
+    setWithdrawalData((prevData: any) => ({
+      ...prevData,
+      [id]: value,
+    }));
   };
 
   if (loading) {
@@ -169,9 +217,9 @@ export default function UserDashboard() {
               <CardContent>
                 <p className="text-3xl font-bold mb-6 text-indigo-600">Total Balance: {balance} points</p>
                 <div className="aspect-video bg-gradient-to-r from-purple-400 to-pink-500 rounded-lg mb-6 flex items-center justify-center text-white text-xl font-bold">
-                  Banner Placeholder
+                  <img src={metaData?.homeImageLink} alt="Banner" className="object-cover w-full h-full rounded-lg" />
                 </div>
-                <Button variant="outline" className="w-full border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">
+                <Button onClick={handlePromoteChannel} variant="outline" className="w-full border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">
                   Promote Your Ad
                 </Button>
               </CardContent>
@@ -191,7 +239,7 @@ export default function UserDashboard() {
                       <p className="text-sm text-gray-600">{task.description}</p>
                     </div>
                     <Button
-                      onClick={() => handleClaimTask(task.id)}
+                      onClick={() => handleClaimTask(task)}
                       disabled={task.completed}
                       className={`${task.completed ? 'bg-green-500' : 'bg-indigo-600 hover:bg-indigo-700'} text-white transition-colors duration-200`}
                     >
@@ -231,13 +279,22 @@ export default function UserDashboard() {
                 <form className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="exchange-id" className="text-sm font-medium text-gray-700">Exchange ID</Label>
-                    <Input type="text" id="exchange-id" placeholder="Enter your exchange ID" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
+                    <Input type="text" id="exchangeId" placeholder="Enter your exchange ID" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                      onChange={handleWithdrawChange} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="crypto-address" className="text-sm font-medium text-gray-700">Crypto Address</Label>
-                    <Input type="text" id="crypto-address" placeholder="Enter your crypto address" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" />
+                    <Input type="text" id="cryptoAddress" placeholder="Enter your crypto address" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                      onChange={handleWithdrawChange}
+                    />
                   </div>
-                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors duration-200">Save Payment Details</Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="bank-details" className="text-sm font-medium text-gray-700">Bank Details</Label>
+                    <Input type="text" id="bankDetails" placeholder="Enter your bank details" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                      onChange={handleWithdrawChange}
+                    />
+                  </div>
+                  <Button onClick={savePaymentDetails} type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors duration-200">Save Payment Details</Button>
                 </form>
               </CardContent>
             </Card>
