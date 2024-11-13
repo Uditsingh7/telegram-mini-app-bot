@@ -217,7 +217,7 @@ export default function UserDashboard() {
               <CardContent>
                 <p className="text-3xl font-bold mb-6 text-indigo-600">Total Balance: {balance} points</p>
                 <div className="aspect-video bg-gradient-to-r from-purple-400 to-pink-500 rounded-lg mb-6 flex items-center justify-center text-white text-xl font-bold">
-                  <img src={metaData?.homeImageLink} alt="Banner" className="object-cover w-full h-full rounded-lg" />
+                  <img src={metaData?.homeImageLink || "https://th.bing.com/th/id/OIG4.z6Qu2kckn4._tuLj3ETT?w=270&h=270&c=6&r="} alt="Banner" className="object-cover w-full h-full rounded-lg" />
                 </div>
                 <Button onClick={handlePromoteChannel} variant="outline" className="w-full border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">
                   Promote Your Ad
