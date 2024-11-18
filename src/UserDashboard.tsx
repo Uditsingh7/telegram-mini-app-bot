@@ -1,16 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Home, CheckSquare, Users, CreditCard, DollarSign, Check, Copy } from 'lucide-react';
+import { Check, ChevronRight, Copy, CreditCard, DollarSign, Home, Users, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useTelegram, ITelegramUser } from './WithTelegramProvider'
+import bannerImage from './assets/img/image.png';
+import loadingImage from './assets/img/loading.png'
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
+const base = `http://localhost:5000/`
 declare global {
   interface Window {
     Telegram: any;
@@ -19,29 +24,71 @@ declare global {
 
 // Define the Task type
 interface Task {
+  _id?: any;
   id: number;
   name: string;
   description: string;
+  channelId: string;
   completed: boolean;
 }
 
+interface EarnOpp {
+  id: number;
+  name: string;
+  description: string;
+  depositLink: string;
+  withdrawLink: string;
+}
+
 const defaultTasks: Task[] = [
-  { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', completed: false },
-  { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', completed: false },
+  { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', channelId: "1234", completed: false },
+  { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', channelId: "1234", completed: false },
+]
+
+const defaultEarnOpp: EarnOpp[] = [
+  { id: 1, name: 'Earn 12% Monthly Apy', description: "Earn 12% monthly APY, risk-free..", depositLink: 't.me/QMEAdmin', withdrawLink: " t.me/qmeadmin" },
 ]
 
 export default function UserDashboard() {
   const { user, webApp } = useTelegram();
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [hasJoinedChannel, setHasJoinedChannel] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [balance, setBalance] = useState(0);
   const [tasks, setTasks] = useState<Task[]>(defaultTasks);
+  const [earnOpp, setEarnOpp] = useState<EarnOpp[]>(defaultEarnOpp);
   const [metaData, setMetaData] = useState<any>({});
   const [WithdrawalData, setWithdrawalData] = useState<any>({});
   const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
   const [referralCount, setReferralCount] = useState(0);
   const [userData, setUserData] = useState<any>(null);
+  const [withdrawalMethod, setWithdrawalMethod] = useState<"UPI" | "CRYPTO" | null>(null)
+  const [formData, setFormData] = useState({
+    name: "",
+    upiId: "",
+    coinName: "",
+    cryptoAddress: "",
+    cryptoNetwork: ""
+  })
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value })
+  }
+
+  // const handleConfirm = () => {
+  //   // Here you would typically send the data to your backend
+  //   console.log("Withdrawal details:", { method: withdrawalMethod, ...formData })
+  //   toast.success("Your withdrawal details have been successfully saved.")
+  //   // Reset form after submission
+  //   setWithdrawalMethod(null)
+  //   setFormData({
+  //     name: "",
+  //     upiId: "",
+  //     coinName: "",
+  //     cryptoAddress: "",
+  //     cryptoNetwork: ""
+  //   })
+  // }
   // const [referralCode, setReferralCode] = useState<string | null>(null);
   console.log(webApp, userData, setReferralCount, setReferralLink)
 
@@ -52,24 +99,60 @@ export default function UserDashboard() {
         await fetchAppMetadata(user)
       }
       await fetchTasks(); // Then fetch tasks after user handling
+      await fetchEarnOpp();
 
     };
 
     handleUserAndTasks();
   }, [user]);
 
-  const savePaymentDetails = async () => {
+  const saveWithdrawalDetails = async (userId: any, method: any, details: any) => {
     try {
-      const withdrwaBody = {
-        userId: userData?._id,
-        ...WithdrawalData
-      }
-      await axios.post('http://localhost:5000/api/users/payment-details', withdrwaBody)
-      toast.success('Payment details saved successfully!');
-    } catch (error: any) {
-      console.error("Error in createOrUpdateUser:", error.response?.data || error.message);
+      const response = await axios.post(`${base}api/users/withdraw-details`, {
+        userId,
+        method,
+        details,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving withdrawal details:', error);
+      return { success: false, message: 'Failed to save withdrawal details' };
     }
-  }
+  };
+
+  const handleConfirm = async () => {
+    const details =
+      withdrawalMethod === "UPI"
+        ? {
+          name: formData.name,
+          upiId: formData.upiId,
+        }
+        : {
+          coinName: formData.coinName,
+          cryptoAddress: formData.cryptoAddress,
+          cryptoNetwork: formData.cryptoNetwork,
+        };
+
+    console.log("Withdraw Details:", details)
+
+    const response = await saveWithdrawalDetails(user?.id, withdrawalMethod, details);
+
+    if (response.success) {
+      alert("Withdrawal details saved successfully!");
+      // Reset form or perform any other actions
+      setWithdrawalMethod(null);
+      setFormData({
+        name: "",
+        upiId: "",
+        coinName: "",
+        cryptoAddress: "",
+        cryptoNetwork: ""
+      });
+    } else {
+      alert(response.message || "Failed to save withdrawal details.");
+    }
+  };
+
 
   const createOrUpdateUser = async (user: ITelegramUser) => {
     if (!user) {
@@ -81,7 +164,7 @@ export default function UserDashboard() {
 
     try {
       // Create or update user
-      const { data: userResponse } = await axios.post('http://localhost:5000/api/users/create-or-update', {
+      const { data: userResponse } = await axios.post(`${base}api/users/create-or-update`, {
         userId: id,
         username,
         firstName,
@@ -92,7 +175,7 @@ export default function UserDashboard() {
       setUserData(userResponse);
 
       // Check if the user is a member of the channel
-      const { data: membershipCheck } = await axios.get(`http://localhost:5000/api/users/isMember`, {
+      const { data: membershipCheck } = await axios.get(`${base}api/users/isMember`, {
         params: { userId: id }
       });
 
@@ -110,16 +193,27 @@ export default function UserDashboard() {
 
   const fetchTasks = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/tasks');
+      const response = await axios.get(`${base}api/tasks`);
       console.log("task: ", response)
       setTasks(response.data);
     } catch (error) {
       console.error("Error fetching tasks:", error);
     }
   };
+
+  const fetchEarnOpp = async () => {
+    try {
+      const response = await axios.get(`${base}api/users/earn-opp`);
+      console.log("earn opp: ", response)
+      setEarnOpp(response.data);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
+
   const fetchAppMetadata = async (user: ITelegramUser) => {
     try {
-      const response = await axios.get('http://localhost:5000/api/users/settings?config=AppMetaData');
+      const response = await axios.get(`${base}api/users/settings?config=AppMetaData`);
       console.log("task: ", response)
       const metaDataRes = response?.data?.value
       setMetaData(metaDataRes);
@@ -155,17 +249,51 @@ export default function UserDashboard() {
     }
   };
 
-  const handleClaimTask = async (task: any) => {
+  const handleClaimTask = async (task: Task) => {
     const telegram = window.Telegram?.WebApp;
     try {
-      const channelLink = `https://t.me/${task?.channelId}`;
-      // Open the Telegram channel link in a new tab
-      telegram.openLink(channelLink, '_blank');
+      // const channelLink = `https://t.me/${task?.channelId}`;
+      // // Open the Telegram channel link in a new tab
+      // telegram.openLink(channelLink, '_blank');
+      const body = {
+        userId: user?.id,
+        taskId: task._id
+      }
+      console.log('Claim body: ', body)
+      const response = await axios.post(`${base}api/tasks/claim-task`, body)
+      console.log("Claim task: ", response)
+      if (response?.data?.redirectUrl) {
+        const channelLink = response?.data?.redirectUrl;
+        telegram.openLink(channelLink, '_blank');
+      }
+
     }
     catch (error) {
       console.error("Error fetching tasks:", error);
     }
   };
+
+  const handleDepostitEarnOpp = async (earnOpp: any) => {
+    const telegram = window.Telegram?.webApp;
+    try {
+      const channelLink = `https://${earnOpp?.depositLink}`
+      telegram.openLink(channelLink, '_blank')
+    }
+    catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  }
+
+  const handleWithdrawEarnOpp = async (earnOpp: any) => {
+    const telegram = window.Telegram?.webApp;
+    try {
+      const channelLink = `https://${earnOpp?.withdrawLink}`
+      telegram.openLink(channelLink, '_blank')
+    }
+    catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  }
 
   // Handle input change and update the state dynamically
   const handleWithdrawChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,12 +308,17 @@ export default function UserDashboard() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500"></div>
-        <p className="mt-4 text-lg text-gray-700">Loading, please wait...</p>
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <img
+          src={loadingImage} // Replace with your actual image path
+          alt="Loading"
+          className="h-full w-full object-contain"
+        />
       </div>
     );
   }
+
+
 
   if (!hasJoinedChannel) {
     return (
@@ -206,44 +339,109 @@ export default function UserDashboard() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-800">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 text-white">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+        <header className="p-4 bg-black bg-opacity-30 backdrop-blur-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Avatar>
+                <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${user?.first_name}`} />
+                <AvatarFallback>{user?.first_name[0]}</AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-xl font-bold">Welcome, {user?.first_name}!</h1>
+                <p className="text-sm text-indigo-200">Your Crypto Journey Awaits</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold">{balance} ₹</p>
+              <p className="text-xs text-indigo-200">Current Balance</p>
+            </div>
+          </div>
+        </header>
+
         <main className="flex-1 overflow-y-auto p-4 pb-20">
           <TabsContent value="home">
-            <Card className="shadow-md hover:shadow-lg transition-shadow duration-200">
-              <CardHeader>
-                <CardTitle className="text-2xl font-bold text-indigo-700">Welcome Back, {user?.first_name}!</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold mb-6 text-indigo-600">Total Balance: {balance} points</p>
-                <div className="aspect-video bg-gradient-to-r from-purple-400 to-pink-500 rounded-lg mb-6 flex items-center justify-center text-white text-xl font-bold">
-                  <img src={metaData?.homeImageLink || "https://th.bing.com/th/id/OIG4.z6Qu2kckn4._tuLj3ETT?w=270&h=270&c=6&r="} alt="Banner" className="object-cover w-full h-full rounded-lg" />
+            <div className="space-y-4">
+              <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl overflow-hidden">
+                <div className="relative h-40">
+                  <img
+                    src={bannerImage}
+                    alt="Promotional Banner"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <h2 className="text-2xl font-bold text-white">Crypto Rewards Await!</h2>
+                  </div>
                 </div>
-                <Button onClick={handlePromoteChannel} variant="outline" className="w-full border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">
-                  Promote Your Ad
-                </Button>
-              </CardContent>
-            </Card>
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-indigo-200">Per Referral</p>
+                      <p className="text-lg font-bold">5 ₹</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-indigo-200">Per Task</p>
+                      <p className="text-lg font-bold">2.5 ₹</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-bold">Quick Actions</CardTitle>
+                  <CardDescription className="text-indigo-200">Manage your crypto activities</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  {[
+                    { label: "Promote Your Ad", action: () => { } },
+                    { label: "Tasks", tab: "tasks" },
+                    { label: "Refer & Earn", tab: "refer" },
+                    { label: "Withdraw", tab: "withdraw" },
+                    { label: "Earn $", tab: "earn" },
+                  ].map((item, index) => (
+                    <Button
+                      key={index}
+                      variant="secondary"
+                      className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white border-none"
+                      onClick={() => {
+                        if (item.tab) {
+                          setActiveTab(item.tab);
+                        } else if (item.action) {
+                          item.action();
+                        }
+                      }}
+                    >
+                      {item.label}
+                      <ChevronRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="tasks">
-            <Card className="shadow-md">
+            <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold text-indigo-700">Available Tasks</CardTitle>
+                <CardTitle className="text-2xl font-bold">Available Tasks</CardTitle>
+                <CardDescription className="text-indigo-200">Complete tasks to earn rewards</CardDescription>
               </CardHeader>
-              <CardContent>
-                {tasks.map((task: any) => (
-                  <div key={task.id} className="flex items-center justify-between mb-4 p-4 border rounded-lg hover:bg-indigo-50 transition-colors duration-200">
+              <CardContent className="space-y-4">
+                {tasks.map((task) => (
+                  <div key={task.id} className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
                     <div>
-                      <h3 className="font-semibold text-indigo-600">{task.name}</h3>
-                      <p className="text-sm text-gray-600">{task.description}</p>
+                      <h3 className="font-semibold">{task.name}</h3>
+                      <p className="text-sm text-indigo-200">{task.description}</p>
                     </div>
                     <Button
                       onClick={() => handleClaimTask(task)}
                       disabled={task.completed}
-                      className={`${task.completed ? 'bg-green-500' : 'bg-indigo-600 hover:bg-indigo-700'} text-white transition-colors duration-200`}
+                      variant={task.completed ? "secondary" : "default"}
+                      className={task.completed ? "bg-green-500" : ""}
                     >
-                      {task.completed ? <Check className="h-4 w-4" /> : 'Claim'}
+                      {task.completed ? <Check className="h-4 w-4" /> : "Claim"}
                     </Button>
                   </div>
                 ))}
@@ -252,103 +450,169 @@ export default function UserDashboard() {
           </TabsContent>
 
           <TabsContent value="refer">
-            <Card className="shadow-md">
+            <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold text-indigo-700">Refer & Earn</CardTitle>
+                <CardTitle className="text-2xl font-bold">Refer & Earn</CardTitle>
+                <CardDescription className="text-indigo-200">Invite friends and earn crypto rewards</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="mb-4 text-gray-600">Share your referral link and earn points for each new user!</p>
-                <div className="bg-indigo-100 p-3 rounded-lg mb-4 break-all text-indigo-700 font-mono text-sm">
-                  {referralLink}
+              <CardContent className="space-y-4">
+                <div className="bg-white bg-opacity-10 p-4 rounded-lg">
+                  <p className="text-sm mb-2">Your Referral Link:</p>
+                  <p className="font-mono text-xs break-all">{referralLink}</p>
                 </div>
-                <Button variant="outline" className="w-full mb-6 border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200" onClick={() => navigator.clipboard.writeText(referralLink)}>
-                  <Copy className="h-4 w-4 mr-2" /> Copy Link
+                <Button
+                  variant="secondary"
+                  className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white border-none"
+                  onClick={() => navigator.clipboard.writeText(referralLink)}
+                >
+                  <Copy className="mr-2 h-4 w-4" /> Copy Link
                 </Button>
-                <p className="text-center text-lg font-semibold text-indigo-600">Total Referrals: <span className="text-2xl">{referralCount}</span></p>
+                <div className="text-center">
+                  <p className="text-sm text-indigo-200">Total Referrals</p>
+                  <p className="text-3xl font-bold">{referralCount}</p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="withdraw">
-            <Card className="shadow-md">
+            <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold text-indigo-700">Withdrawals</CardTitle>
+                <CardTitle className="text-2xl font-bold">Withdraw Funds</CardTitle>
+                <CardDescription className="text-indigo-200">Choose your preferred withdrawal method</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="mb-6 text-gray-600">Enter your payment details to set up automatic weekly withdrawals.</p>
-                <form className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="exchange-id" className="text-sm font-medium text-gray-700">Exchange ID</Label>
-                    <Input type="text" id="exchangeId" placeholder="Enter your exchange ID" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                      onChange={handleWithdrawChange} />
+                {!withdrawalMethod ? (
+                  <RadioGroup onValueChange={(value) => setWithdrawalMethod(value as "UPI" | "CRYPTO")} className="space-y-4">
+                    <div className="flex items-center space-x-2 bg-white bg-opacity-10 p-4 rounded-lg">
+                      <RadioGroupItem value="UPI" id="upi" />
+                      <Label htmlFor="upi" className="font-medium">UPI</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 bg-white bg-opacity-10 p-4 rounded-lg">
+                      <RadioGroupItem value="CRYPTO" id="crypto" />
+                      <Label htmlFor="crypto" className="font-medium">CRYPTO</Label>
+                    </div>
+                  </RadioGroup>
+                ) : withdrawalMethod === "UPI" ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Enter your Name</Label>
+                      <Input
+                        id="name"
+                        placeholder="Enter your name here"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="upiId">Enter your UPI Id</Label>
+                      <Input
+                        id="upiId"
+                        placeholder="Enter your UPI Id here"
+                        value={formData.upiId}
+                        onChange={handleInputChange}
+                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="crypto-address" className="text-sm font-medium text-gray-700">Crypto Address</Label>
-                    <Input type="text" id="cryptoAddress" placeholder="Enter your crypto address" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                      onChange={handleWithdrawChange}
-                    />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="coinName">Enter your coin name</Label>
+                      <Input
+                        id="coinName"
+                        placeholder="Coin name here"
+                        value={formData.coinName}
+                        onChange={handleInputChange}
+                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cryptoAddress">Enter your crypto address</Label>
+                      <Input
+                        id="cryptoAddress"
+                        placeholder="Crypto address here"
+                        value={formData.cryptoAddress}
+                        onChange={handleInputChange}
+                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cryptoNetwork">Enter your network of crypto</Label>
+                      <Input
+                        id="cryptoNetwork"
+                        placeholder="Crypto network name here"
+                        value={formData.cryptoNetwork}
+                        onChange={handleInputChange}
+                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bank-details" className="text-sm font-medium text-gray-700">Bank Details</Label>
-                    <Input type="text" id="bankDetails" placeholder="Enter your bank details" className="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                      onChange={handleWithdrawChange}
-                    />
+                )}
+
+                {withdrawalMethod && (
+                  <div className="mt-6 space-y-4">
+                    <Button onClick={handleConfirm} className="w-full bg-green-500 hover:bg-green-600">
+                      <Check className="mr-2 h-4 w-4" /> Confirm
+                    </Button>
+                    <Button onClick={() => setWithdrawalMethod(null)} variant="outline" className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white border-none">
+                      <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                    </Button>
                   </div>
-                  <Button onClick={savePaymentDetails} type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors duration-200">Save Payment Details</Button>
-                </form>
+                )}
+
+                <p className="text-xs text-indigo-200 mt-6">
+                  Disclaimer: TrueMoj automatically processes withdrawals at the end of each month and on the 18th.
+                  Don't worry—your earned money is always safe.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="earn">
-            <Card className="shadow-md">
+            <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold text-indigo-700">Earn Opportunities</CardTitle>
+                <CardTitle className="text-2xl font-bold">Earn Opportunities</CardTitle>
+                <CardDescription className="text-indigo-200">Grow your crypto portfolio</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="p-4 border rounded-lg hover:bg-indigo-50 transition-colors duration-200">
-                    <h3 className="font-semibold text-lg text-indigo-600 mb-2">Staking Pool</h3>
-                    <p className="text-sm text-gray-600 mb-4">Stake your tokens and earn passive income.</p>
+              <CardContent className="space-y-4">
+                {earnOpp.map((opportunity, index) => (
+                  <div key={index} className="p-4 bg-white bg-opacity-10 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">{opportunity.name}</h3>
+                    <p className="text-sm text-indigo-200 mb-4">{opportunity.description}</p>
                     <div className="flex space-x-2">
-                      <Button variant="outline" className="flex-1 border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">Deposit</Button>
-                      <Button variant="outline" className="flex-1 border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">Withdraw</Button>
+                      <Button onClick={() => handleDepostitEarnOpp(opportunity)} variant="secondary" className="flex-1 bg-white bg-opacity-10 hover:bg-opacity-20 text-white border-none">
+                        Deposit
+                      </Button>
+                      <Button onClick={() => handleWithdrawEarnOpp(opportunity)} variant="secondary" className="flex-1 bg-white bg-opacity-10 hover:bg-opacity-20 text-white border-none">
+                        Withdraw
+                      </Button>
                     </div>
                   </div>
-                  <div className="p-4 border rounded-lg hover:bg-indigo-50 transition-colors duration-200">
-                    <h3 className="font-semibold text-lg text-indigo-600 mb-2">Yield Farming</h3>
-                    <p className="text-sm text-gray-600 mb-4">Provide liquidity and earn high APY.</p>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" className="flex-1 border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">Deposit</Button>
-                      <Button variant="outline" className="flex-1 border-indigo-500 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">Withdraw</Button>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
         </main>
-        <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid grid-cols-5 bg-white border-t border-gray-200 shadow-lg">
-          <TabsTrigger value="home" className="flex flex-col items-center justify-center text-gray-600 hover:text-indigo-600 transition-colors duration-200">
-            <Home className="h-5 w-5" />
-            <span className="text-xs mt-1">Home</span>
-          </TabsTrigger>
-          <TabsTrigger value="tasks" className="flex flex-col items-center justify-center text-gray-600 hover:text-indigo-600 transition-colors duration-200">
-            <CheckSquare className="h-5 w-5" />
-            <span className="text-xs mt-1">Tasks</span>
-          </TabsTrigger>
-          <TabsTrigger value="refer" className="flex flex-col items-center justify-center text-gray-600 hover:text-indigo-600 transition-colors duration-200">
-            <Users className="h-5 w-5" />
-            <span className="text-xs mt-1">Refer</span>
-          </TabsTrigger>
-          <TabsTrigger value="withdraw" className="flex flex-col items-center justify-center text-gray-600 hover:text-indigo-600 transition-colors duration-200">
-            <CreditCard className="h-5 w-5" />
-            <span className="text-xs mt-1">Withdraw</span>
-          </TabsTrigger>
-          <TabsTrigger value="earn" className="flex flex-col items-center justify-center text-gray-600 hover:text-indigo-600 transition-colors duration-200">
-            <DollarSign className="h-5 w-5" />
-            <span className="text-xs mt-1">Earn</span>
-          </TabsTrigger>
+
+        <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid grid-cols-5 bg-black bg-opacity-50 backdrop-blur-lg border-t border-indigo-800">
+          {[
+            { value: "home", icon: Home, label: "Home" },
+            { value: "tasks", icon: Check, label: "Tasks" },
+            { value: "refer", icon: Users, label: "Refer" },
+            { value: "withdraw", icon: CreditCard, label: "Withdraw" },
+            { value: "earn", icon: DollarSign, label: "Earn" },
+          ].map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="flex flex-col items-center justify-center text-indigo-200 data-[state=active]:text-white"
+            >
+              <tab.icon className="h-5 w-5" />
+              <span className="text-xs mt-1">{tab.label}</span>
+            </TabsTrigger>
+          ))}
         </TabsList>
       </Tabs>
     </div>
