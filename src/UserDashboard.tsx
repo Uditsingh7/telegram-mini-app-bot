@@ -58,7 +58,7 @@ export default function UserDashboard() {
   const [tasks, setTasks] = useState<Task[]>(defaultTasks);
   const [earnOpp, setEarnOpp] = useState<EarnOpp[]>(defaultEarnOpp);
   const [metaData, setMetaData] = useState<any>({});
-  const [WithdrawalData, setWithdrawalData] = useState<any>({});
+  // const [withdrawalData, setWithdrawalData] = useState<any>({});
   const [referralLink, setReferralLink] = useState('https://t.me/YourBot?start=123456');
   const [referralCount, setReferralCount] = useState(0);
   const [userData, setUserData] = useState<any>(null);
@@ -138,7 +138,7 @@ export default function UserDashboard() {
     const response = await saveWithdrawalDetails(user?.id, withdrawalMethod, details);
 
     if (response.success) {
-      alert("Withdrawal details saved successfully!");
+      toast.success("Withdrawal details saved successfully!");
       // Reset form or perform any other actions
       setWithdrawalMethod(null);
       setFormData({
@@ -149,7 +149,7 @@ export default function UserDashboard() {
         cryptoNetwork: ""
       });
     } else {
-      alert(response.message || "Failed to save withdrawal details.");
+      toast.error(response.message || "Failed to save withdrawal details.");
     }
   };
 
@@ -173,6 +173,7 @@ export default function UserDashboard() {
 
       // Update user data state
       setUserData(userResponse);
+      console.log("userResponse:", userResponse)
 
       // Check if the user is a member of the channel
       const { data: membershipCheck } = await axios.get(`${base}api/users/isMember`, {
@@ -203,6 +204,7 @@ export default function UserDashboard() {
 
   const fetchEarnOpp = async () => {
     try {
+
       const response = await axios.get(`${base}api/users/earn-opp`);
       console.log("earn opp: ", response)
       setEarnOpp(response.data);
@@ -242,7 +244,7 @@ export default function UserDashboard() {
     const telegram = window.Telegram?.WebApp;
     try {
       // Open the Telegram channel link in a new tab
-      telegram.openLink(metaData?.channelLink, '_blank');
+      telegram.openLink(metaData?.adChannelLink, '_blank');
     }
     catch (error) {
       console.error("Error fetching tasks:", error);
@@ -262,19 +264,26 @@ export default function UserDashboard() {
       console.log('Claim body: ', body)
       const response = await axios.post(`${base}api/tasks/claim-task`, body)
       console.log("Claim task: ", response)
+      // Show toast with the API message
+      if (response?.data?.message) {
+        toast.success(response.data.message);
+      }
       if (response?.data?.redirectUrl) {
         const channelLink = response?.data?.redirectUrl;
         telegram.openLink(channelLink, '_blank');
       }
 
     }
-    catch (error) {
+    catch (error: any) {
       console.error("Error fetching tasks:", error);
+      // Show toast with error message
+      const errorMessage = error.response?.data?.error || "An unexpected error occurred.";
+      toast.error(errorMessage);
     }
   };
 
   const handleDepostitEarnOpp = async (earnOpp: any) => {
-    const telegram = window.Telegram?.webApp;
+    const telegram = window.Telegram?.WebApp;
     try {
       const channelLink = `https://${earnOpp?.depositLink}`
       telegram.openLink(channelLink, '_blank')
@@ -285,7 +294,7 @@ export default function UserDashboard() {
   }
 
   const handleWithdrawEarnOpp = async (earnOpp: any) => {
-    const telegram = window.Telegram?.webApp;
+    const telegram = window.Telegram?.WebApp;
     try {
       const channelLink = `https://${earnOpp?.withdrawLink}`
       telegram.openLink(channelLink, '_blank')
@@ -295,16 +304,6 @@ export default function UserDashboard() {
     }
   }
 
-  // Handle input change and update the state dynamically
-  const handleWithdrawChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
-
-    // Dynamically update the corresponding field in the withdrawalData object
-    setWithdrawalData((prevData: any) => ({
-      ...prevData,
-      [id]: value,
-    }));
-  };
 
   if (loading) {
     return (
@@ -368,7 +367,7 @@ export default function UserDashboard() {
                   <img
                     src={bannerImage}
                     alt="Promotional Banner"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                     <h2 className="text-2xl font-bold text-white">Crypto Rewards Await!</h2>
@@ -395,10 +394,10 @@ export default function UserDashboard() {
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   {[
-                    { label: "Promote Your Ad", action: () => { } },
-                    { label: "Tasks", tab: "tasks" },
+                    { label: "Promote Your Ad", action: handlePromoteChannel },
+                    // { label: "Tasks", tab: "tasks" },
                     { label: "Refer & Earn", tab: "refer" },
-                    { label: "Withdraw", tab: "withdraw" },
+                    // { label: "Withdraw", tab: "withdraw" },
                     { label: "Earn $", tab: "earn" },
                   ].map((item, index) => (
                     <Button
@@ -446,6 +445,7 @@ export default function UserDashboard() {
                   </div>
                 ))}
               </CardContent>
+
             </Card>
           </TabsContent>
 
