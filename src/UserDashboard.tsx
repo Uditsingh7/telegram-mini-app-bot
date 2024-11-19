@@ -15,7 +15,7 @@ import bannerImage from './assets/img/image.png';
 import loadingImage from './assets/img/loading.png'
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
-const base = `http://localhost:5000/`
+const base = `http://44.202.40.234:5000/`
 declare global {
   interface Window {
     Telegram: any;
