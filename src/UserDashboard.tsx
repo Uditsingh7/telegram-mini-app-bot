@@ -51,7 +51,7 @@ const defaultEarnOpp: EarnOpp[] = [
 
 export default function UserDashboard() {
   const { user, webApp } = useTelegram();
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [hasJoinedChannel, setHasJoinedChannel] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [balance, setBalance] = useState(0);
