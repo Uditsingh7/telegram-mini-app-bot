@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, ChevronRight, Copy, CreditCard, DollarSign, Home, Users, ArrowLeft } from 'lucide-react'
+import { Check, ChevronRight, Copy, CreditCard, DollarSign, Home, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,7 +13,7 @@ import { toast } from 'react-toastify';
 import { useTelegram, ITelegramUser } from './WithTelegramProvider'
 import bannerImage from './assets/img/image.png';
 import loadingImage from './assets/img/loading.png'
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+// import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 const base = `https://api-tma.vectoroad.com/`
 declare global {
@@ -21,12 +21,23 @@ declare global {
     Telegram: any;
   }
 }
+// interface WithdrawalDetail {
+//   method: string;
+//   details: {
+//     name?: string;
+//     upiId?: string;
+//     coinName?: string;
+//     cryptoAddress?: string;
+//     cryptoNetwork?: string;
+//   };
+// }
 
 // Define the Task type
 interface Task {
   _id?: any;
   id: number;
   name: string;
+  points: number;
   description: string;
   channelId: string;
   completed: boolean;
@@ -41,8 +52,8 @@ interface EarnOpp {
 }
 
 const defaultTasks: Task[] = [
-  { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', channelId: "1234", completed: false },
-  { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', channelId: "1234", completed: false },
+  { id: 1, name: 'Join Telegram Channel', description: 'Join our official channel', points: 2.5, channelId: "1234", completed: false },
+  { id: 2, name: 'Invite Friends', description: 'Invite 5 friends to the app', points: 2.5, channelId: "1234", completed: false },
 ]
 
 const defaultEarnOpp: EarnOpp[] = [
@@ -55,6 +66,7 @@ export default function UserDashboard() {
   const [hasJoinedChannel, setHasJoinedChannel] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [balance, setBalance] = useState(0);
+  const [referBalance, setReferBalance] = useState(0);
   const [tasks, setTasks] = useState<Task[]>(defaultTasks);
   const [earnOpp, setEarnOpp] = useState<EarnOpp[]>(defaultEarnOpp);
   const [metaData, setMetaData] = useState<any>({});
@@ -121,6 +133,11 @@ export default function UserDashboard() {
   };
 
   const handleConfirm = async () => {
+    if (!withdrawalMethod) {
+      toast.error("Please select a withdrawal method.");
+      return;
+    }
+
     const details =
       withdrawalMethod === "UPI"
         ? {
@@ -133,25 +150,29 @@ export default function UserDashboard() {
           cryptoNetwork: formData.cryptoNetwork,
         };
 
-    console.log("Withdraw Details:", details)
+    if (!Object.values(details).every((value) => value.trim() !== "")) {
+      toast.error("Please fill in all the required fields.");
+      return;
+    }
 
     const response = await saveWithdrawalDetails(user?.id, withdrawalMethod, details);
 
     if (response.success) {
       toast.success("Withdrawal details saved successfully!");
-      // Reset form or perform any other actions
-      setWithdrawalMethod(null);
+      await fetchUserDetails(); // Update user data
+      setWithdrawalMethod(null); // Reset the withdrawal method
       setFormData({
         name: "",
         upiId: "",
         coinName: "",
         cryptoAddress: "",
-        cryptoNetwork: ""
+        cryptoNetwork: "",
       });
     } else {
       toast.error(response.message || "Failed to save withdrawal details.");
     }
   };
+
 
 
   const createOrUpdateUser = async (user: ITelegramUser) => {
@@ -183,7 +204,8 @@ export default function UserDashboard() {
       // Update state based on membership
       setHasJoinedChannel(membershipCheck.isMember);
       setLoading(false)
-      setBalance(userResponse.balance || 0);
+      setBalance(userResponse?.balance || 0);
+      setReferBalance(userResponse?.referBalance || 0)
 
     } catch (error: any) {
       setLoading(false)
@@ -197,6 +219,16 @@ export default function UserDashboard() {
       const response = await axios.get(`${base}api/tasks`);
       console.log("task: ", response)
       setTasks(response.data);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
+
+  const fetchUserDetails = async () => {
+    try {
+      const response = await axios.get(`${base}api/users/details/:${user?.id}`);
+      console.log("UserData: ", response)
+      setUserData(response.data);
     } catch (error) {
       console.error("Error fetching tasks:", error);
     }
@@ -265,13 +297,18 @@ export default function UserDashboard() {
       const response = await axios.post(`${base}api/tasks/claim-task`, body)
       console.log("Claim task: ", response)
       // Show toast with the API message
-      if (response?.data?.message) {
-        toast.success(response.data.message);
-      }
       if (response?.data?.redirectUrl) {
         const channelLink = response?.data?.redirectUrl;
         telegram.openLink(channelLink, '_blank');
       }
+      if (response?.data?.message) {
+        toast.success(response?.data?.message);
+      }
+      // Check for success status and fetch tasks again
+      if (response.status == 201) {
+        await fetchUserDetails();
+      }
+      // await fetchUserDetails(); // Call fetchTasks to refresh the task list
 
     }
     catch (error: any) {
@@ -321,19 +358,37 @@ export default function UserDashboard() {
 
   if (!hasJoinedChannel) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 to-indigo-100 text-gray-800 p-4">
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold text-indigo-700">Welcome to Our Community</CardTitle>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-black p-6">
+        <Card className="w-full max-w-md p-8 bg-gradient-to-br from-indigo-800 to-purple-800 text-white rounded-2xl shadow-2xl">
+          {/* Header Section */}
+          <CardHeader className="text-center mb-6">
+            <CardTitle className="text-3xl font-extrabold tracking-wide mb-2">
+              Welcome to <span className="text-indigo-100">TrueMoj Community</span>
+            </CardTitle>
+            <p className="text-sm text-indigo-300">
+              Join our official Telegram channel to unlock exclusive rewards and perks!
+            </p>
           </CardHeader>
-          <CardContent>
-            <p className="mb-6 text-center text-gray-600">Please join our official Telegram channel to access exclusive content and rewards.</p>
-            <Button onClick={handleJoinChannel} className="w-full bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200">
-              Join Channel
+
+          {/* Button Section */}
+          <CardContent className="flex flex-col items-center space-y-4">
+            <Button
+              onClick={handleJoinChannel}
+              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-lg rounded-lg shadow-md hover:scale-105 transition-transform duration-300"
+            >
+              🚀 Join the Channel
             </Button>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-sm text-indigo-300 hover:text-indigo-400 underline transition-colors duration-200"
+            >
+              🔄 Refresh Page
+            </button>
           </CardContent>
         </Card>
       </div>
+
+
     );
   }
 
@@ -348,12 +403,12 @@ export default function UserDashboard() {
                 <AvatarFallback>{user?.first_name[0]}</AvatarFallback>
               </Avatar>
               <div>
-                <h1 className="text-xl font-bold">Welcome, {user?.first_name}!</h1>
-                <p className="text-sm text-indigo-200">Your Crypto Journey Awaits</p>
+                <h1 className="text-xl font-bold">TrueMoj 🐶</h1>
+                <p className="text-sm text-indigo-200">Real Rewards, No Bull</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold">{balance} ₹</p>
+              <p className="text-2xl font-bold">{userData?.balance || balance} ₹</p>
               <p className="text-xs text-indigo-200">Current Balance</p>
             </div>
           </div>
@@ -362,30 +417,35 @@ export default function UserDashboard() {
         <main className="flex-1 overflow-y-auto p-4 pb-20">
           <TabsContent value="home">
             <div className="space-y-4">
-              <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl overflow-hidden">
-                <div className="relative h-40">
+              <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl overflow-hidden relative">
+                <div className="relative h-60 overflow-hidden">
+                  {/* Full-Sized Image with Subtle Effect */}
                   <img
                     src={bannerImage}
                     alt="Promotional Banner"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover filter brightness-75 transition-transform duration-500 hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                    <h2 className="text-2xl font-bold text-white">Crypto Rewards Await!</h2>
-                  </div>
                 </div>
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+                {/* <div className="absolute inset-0 flex items-center justify-center">
+                    <h2 className="text-3xl font-bold text-white drop-shadow-lg animate-bounce">
+                      Crypto Rewards Await!
+                    </h2>
+                  </div> */}
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div className="p-2 bg-indigo-700 bg-opacity-70 rounded-md shadow-inner">
                       <p className="text-sm text-indigo-200">Per Referral</p>
                       <p className="text-lg font-bold">5 ₹</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-indigo-200">Per Task</p>
+                    <div className="p-2 bg-purple-700 bg-opacity-70 rounded-md shadow-inner">
+                      <p className="text-sm text-purple-200">Per Task</p>
                       <p className="text-lg font-bold">2.5 ₹</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+
 
               <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
                 <CardHeader>
@@ -424,27 +484,47 @@ export default function UserDashboard() {
           <TabsContent value="tasks">
             <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold">Available Tasks</CardTitle>
+                <CardTitle className="text-2xl font-bold">TrueMoj 🐶, Available Tasks</CardTitle>
                 <CardDescription className="text-indigo-200">Complete tasks to earn rewards</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {tasks.map((task) => (
-                  <div key={task.id} className="flex items-center justify-between p-4 bg-white bg-opacity-10 rounded-lg">
-                    <div>
-                      <h3 className="font-semibold">{task.name}</h3>
-                      <p className="text-sm text-indigo-200">{task.description}</p>
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-900 to-purple-800 text-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300"
+                  >
+                    {/* Task Details */}
+                    <div className="flex flex-col">
+                      <h3 className="text-lg font-semibold">{task.name}</h3>
+                      {/* Optional Description */}
+                      {task.description && (
+                        <p className="text-xs text-indigo-300 mt-1">{task.description}</p>
+                      )}
                     </div>
+
+                    {/* Action Button with Reward */}
                     <Button
                       onClick={() => handleClaimTask(task)}
-                      disabled={task.completed}
-                      variant={task.completed ? "secondary" : "default"}
-                      className={task.completed ? "bg-green-500" : ""}
+                      disabled={userData.completedTasks.includes(task._id)}
+                      className={`px-6 py-2 font-medium text-sm rounded-md transition-all duration-300 ${userData.completedTasks.includes(task._id)
+                        ? "bg-green-500 text-white hover:bg-green-600"
+                        : "bg-indigo-600 hover:bg-indigo-700"
+                        }`}
                     >
-                      {task.completed ? <Check className="h-4 w-4" /> : "Claim"}
+                      {userData.completedTasks.includes(task._id) ? (
+                        <div className="flex items-center">
+                          <Check className="h-4 w-4 mr-1" /> Claimed
+                        </div>
+                      ) : (
+                        `Claim ₹${task.points}`
+                      )}
                     </Button>
                   </div>
                 ))}
               </CardContent>
+
+
+
 
             </Card>
           </TabsContent>
@@ -452,12 +532,14 @@ export default function UserDashboard() {
           <TabsContent value="refer">
             <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold">Refer & Earn</CardTitle>
-                <CardDescription className="text-indigo-200">Invite friends and earn crypto rewards</CardDescription>
+                <CardTitle className="text-2xl font-bold">TrueMoj 🐶, Refer & Earn</CardTitle>
+                <CardDescription className="text-indigo-200">
+                  Share your referral link and earn 5₹ for each new user!
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-white bg-opacity-10 p-4 rounded-lg">
-                  <p className="text-sm mb-2">Your Referral Link:</p>
+                  <p className="text-sm mb-2">Your Invite Link:</p>
                   <p className="font-mono text-xs break-all">{referralLink}</p>
                 </div>
                 <Button
@@ -468,8 +550,12 @@ export default function UserDashboard() {
                   <Copy className="mr-2 h-4 w-4" /> Copy Link
                 </Button>
                 <div className="text-center">
-                  <p className="text-sm text-indigo-200">Total Referrals</p>
-                  <p className="text-3xl font-bold">{referralCount}</p>
+                  <p className="text-sm text-indigo-200">Total Refers:</p>
+                  <p className="text-3xl font-bold">{referralCount} users</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-indigo-200">Your Total Balance:</p>
+                  <p className="text-3xl font-bold">{userData?.referBalance || referBalance}₹</p>
                 </div>
               </CardContent>
             </Card>
@@ -478,102 +564,157 @@ export default function UserDashboard() {
           <TabsContent value="withdraw">
             <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold">Withdraw Funds</CardTitle>
-                <CardDescription className="text-indigo-200">Choose your preferred withdrawal method</CardDescription>
+                <CardTitle className="text-2xl font-bold">TrueMoj 🐶, Withdrawals</CardTitle>
+                <CardDescription className="text-indigo-200">
+                  Manage your withdrawal methods
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {!withdrawalMethod ? (
-                  <RadioGroup onValueChange={(value) => setWithdrawalMethod(value as "UPI" | "CRYPTO")} className="space-y-4">
-                    <div className="flex items-center space-x-2 bg-white bg-opacity-10 p-4 rounded-lg">
-                      <RadioGroupItem value="UPI" id="upi" />
-                      <Label htmlFor="upi" className="font-medium">UPI</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 bg-white bg-opacity-10 p-4 rounded-lg">
-                      <RadioGroupItem value="CRYPTO" id="crypto" />
-                      <Label htmlFor="crypto" className="font-medium">CRYPTO</Label>
-                    </div>
-                  </RadioGroup>
-                ) : withdrawalMethod === "UPI" ? (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Enter your Name</Label>
-                      <Input
-                        id="name"
-                        placeholder="Enter your name here"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="upiId">Enter your UPI Id</Label>
-                      <Input
-                        id="upiId"
-                        placeholder="Enter your UPI Id here"
-                        value={formData.upiId}
-                        onChange={handleInputChange}
-                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
-                      />
-                    </div>
+                  <div className="space-y-6">
+                    {/* Step 1: Show existing details and options */}
+                    {userData.withdrawalDetails.map((detail: any, index: any) => (
+                      <div key={index} className="p-4 bg-white bg-opacity-10 rounded-lg space-y-2">
+                        <h3 className="text-lg font-bold text-indigo-300">{detail.method} Withdrawal</h3>
+                        <div className="text-sm text-indigo-200">
+                          {detail.method === "UPI" ? (
+                            <>
+                              <p><strong>Name:</strong> {detail.details.name}</p>
+                              <p><strong>UPI ID:</strong> {detail.details.upiId}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p><strong>Coin Name:</strong> {detail.details.coinName}</p>
+                              <p><strong>Crypto Address:</strong> {detail.details.cryptoAddress}</p>
+                              <p><strong>Network:</strong> {detail.details.cryptoNetwork}</p>
+                            </>
+                          )}
+                        </div>
+                        {/* Edit Button */}
+                        <Button
+                          onClick={() => {
+                            setWithdrawalMethod(detail.method);
+                            setFormData(detail.details);
+                          }}
+                          className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-2 rounded-lg"
+                        >
+                          Edit {detail.method} Details
+                        </Button>
+                      </div>
+                    ))}
+
+                    {/* Add new method if not already added */}
+                    {userData.withdrawalDetails.length < 2 && (
+                      <div className="grid grid-cols-2 gap-4">
+                        {!userData.withdrawalDetails.some((detail: any) => detail.method === "UPI") && (
+                          <Button
+                            onClick={() => setWithdrawalMethod("UPI")}
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg"
+                          >
+                            Add UPI
+                          </Button>
+                        )}
+                        {!userData.withdrawalDetails.some((detail: any) => detail.method === "CRYPTO") && (
+                          <Button
+                            onClick={() => setWithdrawalMethod("CRYPTO")}
+                            className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg"
+                          >
+                            Add CRYPTO
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="coinName">Enter your coin name</Label>
-                      <Input
-                        id="coinName"
-                        placeholder="Coin name here"
-                        value={formData.coinName}
-                        onChange={handleInputChange}
-                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cryptoAddress">Enter your crypto address</Label>
-                      <Input
-                        id="cryptoAddress"
-                        placeholder="Crypto address here"
-                        value={formData.cryptoAddress}
-                        onChange={handleInputChange}
-                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cryptoNetwork">Enter your network of crypto</Label>
-                      <Input
-                        id="cryptoNetwork"
-                        placeholder="Crypto network name here"
-                        value={formData.cryptoNetwork}
-                        onChange={handleInputChange}
-                        className="bg-white bg-opacity-10 border-none text-white placeholder-indigo-300"
-                      />
-                    </div>
+                  <div className="space-y-6">
+                    {/* Step 2: Add or Edit Selected Method */}
+                    {withdrawalMethod === "UPI" && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-indigo-300">UPI Withdrawal</h3>
+                        <Label htmlFor="name">Enter your Name</Label>
+                        <Input
+                          id="name"
+                          placeholder="Enter your name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                        />
+                        <Label htmlFor="upiId">Enter your UPI ID</Label>
+                        <Input
+                          id="upiId"
+                          placeholder="Enter your UPI ID"
+                          value={formData.upiId}
+                          onChange={handleInputChange}
+                        />
+                        <Button
+                          onClick={handleConfirm}
+                          className="w-full bg-green-500 hover:bg-green-600"
+                        >
+                          Save UPI Details
+                        </Button>
+                      </div>
+                    )}
+                    {withdrawalMethod === "CRYPTO" && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-indigo-300">Crypto Withdrawal</h3>
+                        <Label htmlFor="coinName">Enter your Coin Name</Label>
+                        <Input
+                          id="coinName"
+                          placeholder="Enter your coin name"
+                          value={formData.coinName}
+                          onChange={handleInputChange}
+                        />
+                        <Label htmlFor="cryptoAddress">Enter your Crypto Address</Label>
+                        <Input
+                          id="cryptoAddress"
+                          placeholder="Enter your crypto address"
+                          value={formData.cryptoAddress}
+                          onChange={handleInputChange}
+                        />
+                        <Label htmlFor="cryptoNetwork">Enter your Network</Label>
+                        <Input
+                          id="cryptoNetwork"
+                          placeholder="Enter your network"
+                          value={formData.cryptoNetwork}
+                          onChange={handleInputChange}
+                        />
+                        <Button
+                          onClick={handleConfirm}
+                          className="w-full bg-green-500 hover:bg-green-600"
+                        >
+                          Save Crypto Details
+                        </Button>
+                      </div>
+                    )}
+                    {/* Back Button */}
+                    <Button
+                      onClick={() => {
+                        setWithdrawalMethod(null);
+                        setFormData({
+                          name: "",
+                          upiId: "",
+                          coinName: "",
+                          cryptoAddress: "",
+                          cryptoNetwork: "",
+                        });
+                      }}
+                      className="w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 rounded-lg"
+                    >
+                      Back
+                    </Button>
                   </div>
                 )}
-
-                {withdrawalMethod && (
-                  <div className="mt-6 space-y-4">
-                    <Button onClick={handleConfirm} className="w-full bg-green-500 hover:bg-green-600">
-                      <Check className="mr-2 h-4 w-4" /> Confirm
-                    </Button>
-                    <Button onClick={() => setWithdrawalMethod(null)} variant="outline" className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white border-none">
-                      <ArrowLeft className="mr-2 h-4 w-4" /> Back
-                    </Button>
-                  </div>
-                )}
-
                 <p className="text-xs text-indigo-200 mt-6">
-                  Disclaimer: TrueMoj automatically processes withdrawals at the end of each month and on the 18th.
-                  Don't worry—your earned money is always safe.
+                  Disclaimer: TrueMoj automatically processes withdrawals at the end of each month and on the 18th. Your money is always safe.
                 </p>
               </CardContent>
             </Card>
           </TabsContent>
 
+
           <TabsContent value="earn">
             <Card className="bg-gradient-to-br from-indigo-800 to-purple-800 border-none text-white shadow-xl">
               <CardHeader>
-                <CardTitle className="text-2xl font-bold">Earn Opportunities</CardTitle>
+                <CardTitle className="text-2xl font-bold">TrueMoj 🐶, Earn Opportunities</CardTitle>
                 <CardDescription className="text-indigo-200">Grow your crypto portfolio</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
