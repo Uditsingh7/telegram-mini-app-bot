@@ -226,7 +226,7 @@ export default function UserDashboard() {
 
   const fetchUserDetails = async () => {
     try {
-      const response = await axios.get(`${base}api/users/details/:${user?.id}`);
+      const response = await axios.get(`${base}api/users/details/${user?.id}`);
       console.log("UserData: ", response)
       setUserData(response.data);
     } catch (error) {
