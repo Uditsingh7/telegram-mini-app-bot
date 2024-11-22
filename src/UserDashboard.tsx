@@ -284,7 +284,7 @@ export default function UserDashboard() {
   };
 
   const handleClaimTask = async (task: Task) => {
-    // const telegram = window.Telegram?.WebApp;
+    const telegram = window.Telegram?.WebApp;
     try {
       // const channelLink = `https://t.me/${task?.channelId}`;
       // // Open the Telegram channel link in a new tab
@@ -299,7 +299,7 @@ export default function UserDashboard() {
       // Show toast with the API message
       if (response?.data?.redirectUrl) {
         const channelLink = response?.data?.redirectUrl;
-        window.open(channelLink, '_blank');
+        telegram.openLink(channelLink, '_blank');
       }
       if (response?.data?.message) {
         toast.success(response?.data?.message);
