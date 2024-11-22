@@ -276,7 +276,7 @@ export default function UserDashboard() {
     const telegram = window.Telegram?.WebApp;
     try {
       // Open the Telegram channel link in a new tab
-      telegram.openLink(metaData?.adChannelLink, '_blank');
+      window.open(metaData?.adChannelLink, '_blank');
     }
     catch (error) {
       console.error("Error fetching tasks:", error);
@@ -299,7 +299,7 @@ export default function UserDashboard() {
       // Show toast with the API message
       if (response?.data?.redirectUrl) {
         const channelLink = response?.data?.redirectUrl;
-        telegram.openLink(channelLink, '_blank');
+        window.open(channelLink, '_blank');
       }
       if (response?.data?.message) {
         toast.success(response?.data?.message);
@@ -323,7 +323,7 @@ export default function UserDashboard() {
     const telegram = window.Telegram?.WebApp;
     try {
       const channelLink = `https://${earnOpp?.depositLink}`
-      telegram.openLink(channelLink, '_blank')
+      window.open(channelLink, '_blank')
     }
     catch (error) {
       console.error("Error fetching tasks:", error);
@@ -334,7 +334,7 @@ export default function UserDashboard() {
     const telegram = window.Telegram?.WebApp;
     try {
       const channelLink = `https://${earnOpp?.withdrawLink}`
-      telegram.openLink(channelLink, '_blank')
+      window.open(channelLink, '_blank')
     }
     catch (error) {
       console.error("Error fetching tasks:", error);
