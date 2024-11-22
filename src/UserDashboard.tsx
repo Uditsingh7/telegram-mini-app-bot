@@ -404,7 +404,7 @@ export default function UserDashboard() {
               </Avatar>
               <div>
                 <h1 className="text-xl font-bold">TrueMoj 🐶</h1>
-                <p className="text-sm text-indigo-200">Real Rewards, No Bull</p>
+                <p className="text-sm text-indigo-200">The Real Earn</p>
               </div>
             </div>
             <div className="text-right">
