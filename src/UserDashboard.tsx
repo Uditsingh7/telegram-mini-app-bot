@@ -273,7 +273,7 @@ export default function UserDashboard() {
 
   const handlePromoteChannel = async () => {
     // alert(metaData?.adChannelLink)
-    const telegram = window.Telegram?.WebApp;
+    // const telegram = window.Telegram?.WebApp;
     try {
       // Open the Telegram channel link in a new tab
       window.open(metaData?.adChannelLink, '_blank');
@@ -284,7 +284,7 @@ export default function UserDashboard() {
   };
 
   const handleClaimTask = async (task: Task) => {
-    const telegram = window.Telegram?.WebApp;
+    // const telegram = window.Telegram?.WebApp;
     try {
       // const channelLink = `https://t.me/${task?.channelId}`;
       // // Open the Telegram channel link in a new tab
@@ -320,7 +320,7 @@ export default function UserDashboard() {
   };
 
   const handleDepostitEarnOpp = async (earnOpp: any) => {
-    const telegram = window.Telegram?.WebApp;
+    // const telegram = window.Telegram?.WebApp;
     try {
       const channelLink = `https://${earnOpp?.depositLink}`
       window.open(channelLink, '_blank')
@@ -331,7 +331,7 @@ export default function UserDashboard() {
   }
 
   const handleWithdrawEarnOpp = async (earnOpp: any) => {
-    const telegram = window.Telegram?.WebApp;
+    // const telegram = window.Telegram?.WebApp;
     try {
       const channelLink = `https://${earnOpp?.withdrawLink}`
       window.open(channelLink, '_blank')
