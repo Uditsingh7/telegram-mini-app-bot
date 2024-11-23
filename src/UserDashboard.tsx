@@ -299,7 +299,13 @@ export default function UserDashboard() {
       // Show toast with the API message
       if (response?.data?.redirectUrl) {
         const channelLink = response?.data?.redirectUrl;
-        telegram?.openLink(channelLink, { try_instant_view: true });
+        if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+          // iOS fallback
+          window.location.href = channelLink;
+        } else {
+          // Use Telegram's openLink for other platforms
+          telegram?.openLink(channelLink, { try_instant_view: true });
+        }
       }
       if (response?.data?.message) {
         toast.success(response?.data?.message);
