@@ -299,7 +299,7 @@ export default function UserDashboard() {
       // Show toast with the API message
       if (response?.data?.redirectUrl) {
         const channelLink = response?.data?.redirectUrl;
-        telegram.openLink(channelLink, '_blank');
+        telegram?.openLink(channelLink, { try_instant_view: true });
       }
       if (response?.data?.message) {
         toast.success(response?.data?.message);
