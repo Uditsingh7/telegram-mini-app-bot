@@ -557,7 +557,7 @@ export default function UserDashboard() {
                 </Button>
                 <div className="text-center">
                   <p className="text-sm text-indigo-200">Total Refers:</p>
-                  <p className="text-3xl font-bold">{referralCount} users</p>
+                  <p className="text-3xl font-bold">{userData?.referrals} users</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-indigo-200">Your Total Balance:</p>
