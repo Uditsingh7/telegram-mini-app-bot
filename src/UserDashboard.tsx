@@ -710,7 +710,7 @@ export default function UserDashboard() {
                   </div>
                 )}
                 <p className="text-xs text-indigo-200 mt-6">
-                  Disclaimer: TrueMoj automatically processes withdrawals at the end of each month and on the 18th. Your money is always safe.
+                  {`Disclaimer: TrueMoj automatically processes withdrawals at the end of each month and on the ${metaData?.withdrawDate || "18th"}. Your money is always safe.`}
                 </p>
               </CardContent>
             </Card>
